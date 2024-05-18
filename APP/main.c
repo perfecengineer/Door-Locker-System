@@ -1,10 +1,4 @@
-/*
- * main.c
- *
- *  Created on: Nov 17, 2022
- *      Author: ACS
- */
-#include "avr/io.h"
+
 #include "avr/delay.h"
 #include "avr/interrupt.h"
 #include "../UTILS/STD_TYPES.h"
@@ -21,8 +15,6 @@ int main()
 	 * these variables using for open & close the serov:
 	 */
 	const u8 close = 0, open  = 180;
-	// direction of pins that using with buzzer & led:
-	DDRB = 0XFF;
 	// this variable use to get data from mobile:
 	u16 recieve_of_bluetooth = 1;
 	// this variable use to get data from keypad:

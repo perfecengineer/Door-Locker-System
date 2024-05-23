@@ -101,7 +101,7 @@ int main()
 		 * '+' meaning or used an "Enter switch" to update the data of user:
 		 * 'F' is data from mobile meaning open the system:
 		 */
-		if((DataFromKeyPad == ENTER_KEY || ReceiveDataFromMobile == 'F') && DoorStatus == LOW)
+		if((DataFromKeyPad == ENTER_KEY || ReceiveDataFromMobile == CHARACTER_FROM_MOBILE_TO_OPEN_DOOR) && DoorStatus == LOW)
 		{
 
 			LCD_vSendCMD(CLEAR_COMMAND);

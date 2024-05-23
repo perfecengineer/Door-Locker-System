@@ -1,34 +1,57 @@
-
+/*
+ * main.c
+ *
+ *  Created on: Nov 17, 2022
+ *      Author: ACS
+ */
+//#include "avr/io.h"
 #include "avr/delay.h"
 #include "avr/interrupt.h"
 #include "../UTILS/STD_TYPES.h"
 #include "../UTILS/BIT_MATH.h"
+#include "../MCAL/DIO/DIO.h"
+#include "../MCAL/DIO/DIO_CFG.h"
 #include "../HAL/LCD/LCD.h"
 #include "../HAL/Keypad/KEYPAD.h"
 #include "../HAL/SERVO/SERVO.h"
 #include "../HAL/LCD/LCD_CFG.h"
 #include "../HAL/BLUTOOTH_MODULE/BLUTOOTH.h"
 
+#define CLOSE_SERVO     (0)
+#define OPEN_SERVO      (180)
+#define CLOSE_STEPPER   (-180)
+#define OPEN_STEPPER    (180)
+#define PASSWORD_WORD              (8888)
+#define NUMBER_OF_PASSWORD_DIGITS  (4)
+#define NUMBER_OF_FAILD_TRYING     (3)
+#define ENTER_KEY                                ('+')
+#define CLOSE_KEY                                ('/')
+#define CHARACTER_FROM_MOBILE_TO_OPEN_DOOR       ('F')
+#define CHARACTER_FROM_MOBILE_TO_CLOSE_DOOR      ('B')
 int main()
 {
 	/*
 	 * these variables using for open & close the serov:
 	 */
-	const u8 close = 0, open  = 180;
+	// direction of pins that using with buzzer & led:
+	SET_PIN_DIR(GROUP_B,PIN_5, OUTPUT);
+	SET_PIN_VALUE(GROUP_B,PIN_5, LOW);
+	SET_PIN_DIR(GROUP_B,PIN_6, OUTPUT);
+	SET_PIN_DIR(GROUP_B,PIN_7, OUTPUT);
 	// this variable use to get data from mobile:
-	u16 recieve_of_bluetooth = 1;
+	u16 ReceiveDataFromMobile = HIGH;
 	// this variable use to get data from keypad:
-	u8 data_of_keypad = 1;
+	u8 DataFromKeyPad = HIGH;
 	// this variable use to check the state of system opend or closed :
-	u8 close_flag = 0;
+	u8 DoorStatus = LOW;
 	// this variable use to counts the number of digit of password:
-	u8 numbre_of_digit = 0;
+	u8 NumberOfPassWordDigit = LOW;
 	// this variable use to counts the number of try fail:
-	u8 number_of_faild_tring = 0;
+	u8 NumberOfFaildTrying = LOW;
 	// this variable use to store the input password:
-	u16 password = 0 ;
+	u16 InputPassWordValueFromUser = LOW ;
 	// this variable use check on the typing of LCD :
-	u8 screen_flag = 0;
+	u8 ScreenCheckFlag = LOW;
 	// the firmware to initiate the  servo:
 	vIniat_function_of_servo();
 	// the firmware to initiate the  keypad:
@@ -38,8 +61,9 @@ int main()
 	// the firmware to initiate the  BLuetooth:
 	BLUTOOTH_vInit();
 	// close the servo:
-	vServo_Angle(close);
+	vServo_Angle(CLOSE_SERVO);
 	// display on LCD to enter the password:
+	 LCD_vSendCMD(CLEAR_COMMAND);
 	 LCD_Display_Str("Enter_password");
 
 	while(1)
@@ -47,48 +71,51 @@ int main()
 		/*
 		 * this block use to get data from the use via the mobile or keypad:
 		 */
-		data_of_keypad = KEYPAD_Get_Value();
-		recieve_of_bluetooth = BLUTOOTH_RECIV();
+		DataFromKeyPad = KEYPAD_Get_Value();
+		ReceiveDataFromMobile = BLUTOOTH_RECIV();
 		_delay_ms(30);
 
 		/*
 		 * this block use to store the value of password from user:
 		 */
-		if( data_of_keypad > 0 && numbre_of_digit < 4 && data_of_keypad != '+' && data_of_keypad != '/' && close_flag == 0)
+		if( DataFromKeyPad > LOW && NumberOfPassWordDigit < NUMBER_OF_PASSWORD_DIGITS && DataFromKeyPad != ENTER_KEY && DataFromKeyPad != CLOSE_KEY && DoorStatus == LOW)
 		{
 			// check the LCD:
-			if(screen_flag == 0)
+			if(ScreenCheckFlag == LOW)
 			{
 				//clear the LCD:
 				LCD_vSendCMD(CLEAR_COMMAND);
+				// rising the flag by one that mean that LCD is cleared:
+				ScreenCheckFlag = HIGH;
 			}
-			// rising the flag by one that mean that LCD is cleared:
-			screen_flag = 1;
 			//calculate the digit of password and store it in variable:
-			password = password * 10 + (data_of_keypad - '0');
-			LCD_GOTO_ROW_COL(0,numbre_of_digit);
+			InputPassWordValueFromUser = InputPassWordValueFromUser * 10 + (DataFromKeyPad - '0');// 48
+			LCD_GOTO_ROW_COL(LOW,NumberOfPassWordDigit);
 			//display the data from user On LCD:
-			LCD_vSendData(data_of_keypad);
+			//LCD_vSendData(data_of_keypad);
+			LCD_vSendData('*');
 			//increase the digit counter by 1 even reach to 4 digit:
-			numbre_of_digit++;
+			NumberOfPassWordDigit++;
 		}
 		/*
 		 * '+' meaning or used an "Enter switch" to update the data of user:
 		 * 'F' is data from mobile meaning open the system:
 		 */
-		if((data_of_keypad == '+' || recieve_of_bluetooth == 'F') && close_flag == 0)
+		if((DataFromKeyPad == ENTER_KEY || ReceiveDataFromMobile == 'F') && DoorStatus == LOW)
 		{
 
 			LCD_vSendCMD(CLEAR_COMMAND);
-			numbre_of_digit = 0;screen_flag = 0;
+			NumberOfPassWordDigit = LOW;
+			ScreenCheckFlag = LOW;
 			// check the password from the user:
-			if(password == 1234 || recieve_of_bluetooth == 'F')
+			if(InputPassWordValueFromUser ==  PASSWORD_WORD || ReceiveDataFromMobile == CHARACTER_FROM_MOBILE_TO_OPEN_DOOR)
 			{
-				close_flag = 1;
-				password = 0;
+				DoorStatus = HIGH;
+				InputPassWordValueFromUser = LOW;
 				// open the system:
-				 LCD_Display_Str("system_opened");
-				 vServo_Angle(open);
+				 LCD_Display_Str("system_open");
+				 vServo_Angle(OPEN_SERVO);
+				 SET_PIN_VALUE(GROUP_B,PIN_6, HIGH);
 
 			}
 			else
@@ -96,51 +123,61 @@ int main()
 				/*
 				 * this meaning that the password is not correct:
 				 */
-				password = 0;
+				InputPassWordValueFromUser = LOW;
 				//increase the number of fail try by 1:
-				number_of_faild_tring++;
+				NumberOfFaildTrying ++;
 				// display the error indication:
-				 LCD_Display_Str("Error_password");
+				 LCD_Display_Str("Incorrect_pass");
 				 LCD_GOTO_ROW_COL(1,0);
 				 LCD_Display_Str("Try_again");
 				 _delay_ms(100);
-				 vServo_Angle(close);
+				 vServo_Angle(CLOSE_SERVO);
 				 LCD_vSendCMD(CLEAR_COMMAND);
-				 if(number_of_faild_tring < 3)
-				 LCD_Display_Str("Enter_password");
+				 if(NumberOfFaildTrying < NUMBER_OF_FAILD_TRYING){
+					 LCD_Display_Str("Enter_password");
+				 }
 				 else
 				 {
 					 // this meaning the number of tring exceed 3 times:
 					 // so the system not safe and then we need to end the program:
-					 LCD_Display_Str("system_not_safe");
+					 LCD_Display_Str("system's Stop");
 					 // this loop using as indicate the system not safe:
 					 // by turn on the led & buzzer 3 times every 2 seconds:
-					while(number_of_faild_tring <= 3)
+					while(NumberOfFaildTrying > LOW)
 					{
-						TOGGLE_BIT(PORTB,7);
-						TOGGLE_BIT(PORTB,6);
-						_delay_ms(2000);
-						number_of_faild_tring--;
+						SET_PIN_VALUE(GROUP_B,PIN_7, HIGH);
+						_delay_ms(1000);
+						SET_PIN_VALUE(GROUP_B,PIN_7, LOW);
+						_delay_ms(1000);
+						NumberOfFaildTrying --;
 					}
 					// and then End the program:
-					// To oprate the program we need to reset the MCU:
-					SET_BIT(PORTB,7);
-					SET_BIT(PORTB,6);
+					// To Run the program, you need to reset the MCU:
+					SET_PIN_VALUE(GROUP_B,PIN_7, HIGH);
+					//_delay_ms(1000);
+					LCD_vSendCMD(CLEAR_COMMAND);
+					LCD_Display_Str("PLZ_RESET_SYS");
 					 break;
 				 }
 
 			}
 		}
-		else if( (recieve_of_bluetooth == 'B' || data_of_keypad == '/') && close_flag == 1)
+		/*
+		 * This block used to closed the system.
+		 */
+		else if( (ReceiveDataFromMobile == CHARACTER_FROM_MOBILE_TO_CLOSE_DOOR || DataFromKeyPad == CLOSE_KEY) && DoorStatus == HIGH)
 		{
-			close_flag = 0;
-			password = 0;data_of_keypad = 1;
+			/*********** reset all objects to default values ***************/
 			LCD_vSendCMD(CLEAR_COMMAND);
 			LCD_Display_Str("system_closed");
-			vServo_Angle(close);
+			vServo_Angle(CLOSE_SERVO);
+
+			SET_PIN_VALUE(GROUP_B,PIN_6, LOW);
+			SET_PIN_VALUE(GROUP_B,PIN_5,HIGH);
 		}
 
 	}
+
 	return 0;
 }
 
